@@ -1,0 +1,120 @@
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    AWS ARCHITECTURE                                      │
+│                                    patpending.net                                        │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+    ┌──────────────┐
+    │    Users     │
+    │  (Internet)  │
+    └──────┬───────┘
+           │ HTTPS (TLS 1.2+)
+           ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│  ROUTE 53 (Global)                                                                       │
+│  Hosted Zone: Z0557923LDI0SVGHCHAM                                                       │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐    │
+│  │  patpending.net      A     ──► d2p9hh3dqnc5zv.cloudfront.net                    │    │
+│  │  patpending.net      AAAA  ──► d2p9hh3dqnc5zv.cloudfront.net                    │    │
+│  │  www.patpending.net  A     ──► d2p9hh3dqnc5zv.cloudfront.net                    │    │
+│  │  www.patpending.net  AAAA  ──► d2p9hh3dqnc5zv.cloudfront.net                    │    │
+│  └─────────────────────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│  ACM CERTIFICATE (us-east-1)                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐    │
+│  │  ARN: arn:aws:acm:us-east-1:128315352575:certificate/4c8cc579-2da5-478d-9a7d-.. │    │
+│  │  Domains: patpending.net, www.patpending.net                                     │    │
+│  │  Validation: DNS                                                                 │    │
+│  └─────────────────────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│  CLOUDFRONT DISTRIBUTION (Global)                                                        │
+│  ID: E1CO8IABKIOQ2Q                                                                      │
+│  Domain: d2p9hh3dqnc5zv.cloudfront.net                                                   │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐    │
+│  │  CONFIGURATION                                                                   │    │
+│  │  ├── Price Class: PriceClass_100 (US, Canada, Europe)                           │    │
+│  │  ├── HTTP Version: HTTP/2                                                        │    │
+│  │  ├── IPv6: Enabled                                                               │    │
+│  │  ├── Default Root Object: index.html                                             │    │
+│  │  ├── Viewer Protocol: redirect-to-https                                          │    │
+│  │  ├── Allowed Methods: GET, HEAD                                                  │    │
+│  │  ├── Compress: Enabled                                                           │    │
+│  │  ├── TTL: min=0, default=86400 (1d), max=31536000 (1y)                          │    │
+│  │  └── SSL: TLSv1.2_2021 minimum, SNI-only                                         │    │
+│  ├─────────────────────────────────────────────────────────────────────────────────┤    │
+│  │  SECURITY HEADERS POLICY                                                         │    │
+│  │  ID: 969933e7-3ba9-44f0-8478-5a4a84cf36a0                                       │    │
+│  │  ├── Strict-Transport-Security: max-age=31536000; includeSubDomains; preload    │    │
+│  │  ├── X-Content-Type-Options: nosniff                                             │    │
+│  │  ├── X-Frame-Options: DENY                                                       │    │
+│  │  ├── X-XSS-Protection: 1; mode=block                                             │    │
+│  │  ├── Referrer-Policy: strict-origin-when-cross-origin                            │    │
+│  │  └── Content-Security-Policy: default-src 'self'; style-src 'self'              │    │
+│  │      'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'               │    │
+│  ├─────────────────────────────────────────────────────────────────────────────────┤    │
+│  │  ORIGIN ACCESS CONTROL                                                           │    │
+│  │  ID: E3KI941MNEBMEW                                                              │    │
+│  │  Name: patpending-net-static-site-oac                                            │    │
+│  │  Signing: SigV4 (always)                                                         │    │
+│  └─────────────────────────────────────────────────────────────────────────────────┘    │
+└───────────────────────────────────┬─────────────────────────────┬───────────────────────┘
+                                    │                             │
+                                    │ Origin Request              │ Access Logs
+                                    ▼                             ▼
+┌───────────────────────────────────────────────────┐  ┌─────────────────────────────────┐
+│  S3 BUCKET - STATIC CONTENT (eu-west-2)           │  │  S3 BUCKET - LOGS (eu-west-2)   │
+│  Name: patpending-net-static-site                 │  │  Name: patpending-net-static-   │
+│  ┌───────────────────────────────────────────┐    │  │        site-logs                │
+│  │  SECURITY                                  │    │  │  ┌─────────────────────────┐   │
+│  │  ├── Public Access: BLOCKED (all 4)       │    │  │  │  SECURITY               │   │
+│  │  ├── Encryption: AES-256 (SSE-S3)         │    │  │  │  ├── Public Access:     │   │
+│  │  ├── Versioning: Enabled                  │    │  │  │  │   BLOCKED (all 4)    │   │
+│  │  └── Access: CloudFront OAC only          │    │  │  │  ├── Encryption: AES256 │   │
+│  ├───────────────────────────────────────────┤    │  │  │  ├── Versioning: On     │   │
+│  │  BUCKET POLICY                            │    │  │  │  └── ACL: log-delivery  │   │
+│  │  Allow s3:GetObject from CloudFront       │    │  │  │       -write            │   │
+│  │  Condition: SourceArn matches distro      │    │  │  ├─────────────────────────┤   │
+│  ├───────────────────────────────────────────┤    │  │  │  LIFECYCLE              │   │
+│  │  OBJECTS                                  │    │  │  │  └── Expire: 90 days    │   │
+│  │  ├── index.html (redirect)                │    │  │  │      (noncurrent: 30d)  │   │
+│  │  └── privacy-policy.html                  │    │  │  ├─────────────────────────┤   │
+│  ├───────────────────────────────────────────┤    │  │  │  PREFIXES               │   │
+│  │  LOGGING ─────────────────────────────────┼────┼──│  │  ├── s3-access-logs/    │   │
+│  │  Target: patpending-net-static-site-logs  │    │  │  │  └── cloudfront-logs/  │   │
+│  │  Prefix: s3-access-logs/                  │    │  │  └─────────────────────────┘   │
+│  └───────────────────────────────────────────┘    │  └─────────────────────────────────┘
+└───────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│  TAGS (All Resources)                                                                    │
+│  ├── Project: patpending-static-site                                                     │
+│  └── ManagedBy: terraform                                                                │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│  REGION DISTRIBUTION                                                                     │
+│  ┌────────────────────────┐  ┌────────────────────────┐  ┌────────────────────────┐     │
+│  │  GLOBAL                │  │  us-east-1             │  │  eu-west-2 (London)    │     │
+│  │  • Route 53            │  │  • ACM Certificate     │  │  • S3 (static-site)    │     │
+│  │  • CloudFront          │  │    (required for CF)   │  │  • S3 (logs)           │     │
+│  └────────────────────────┘  └────────────────────────┘  └────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+                              ┌──────────────────────────┐
+                              │  REQUEST FLOW            │
+                              │                          │
+                              │  1. User → patpending.net│
+                              │  2. Route 53 → CloudFront│
+                              │  3. CloudFront checks    │
+                              │     cache                │
+                              │  4. Cache miss → S3      │
+                              │     (via OAC/SigV4)      │
+                              │  5. Response + security  │
+                              │     headers → User       │
+                              │  6. Logs → S3 logs bucket│
+                              └──────────────────────────┘
