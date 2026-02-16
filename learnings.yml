@@ -1,0 +1,96 @@
+project:
+  name: privacy-policy
+  description: Static website hosting for Dry Days app privacy policy
+  domain: patpending.net
+  owner: Patrick Strobel
+  contact_email: drydays@teamstrobel.org
+  github_repo: https://github.com/patpending/privacy-policy
+
+infrastructure:
+  provider: AWS
+  managed_by: Terraform
+  default_region: eu-west-2 (London)
+
+  resources:
+    s3_buckets:
+      - name: patpending-net-static-site
+        purpose: Static website content
+        region: eu-west-2
+        features:
+          - versioning
+          - AES-256 encryption
+          - public access blocked
+          - access logging enabled
+      - name: patpending-net-static-site-logs
+        purpose: Access logs storage
+        region: eu-west-2
+        lifecycle: 90 days expiration
+
+    cloudfront:
+      distribution_id: E1CO8IABKIOQ2Q
+      domain: d2p9hh3dqnc5zv.cloudfront.net
+      price_class: PriceClass_100 (US, Canada, Europe)
+      security_headers:
+        - HSTS (1 year, preload)
+        - Content-Security-Policy
+        - X-Frame-Options DENY
+        - X-Content-Type-Options nosniff
+        - X-XSS-Protection
+        - Referrer-Policy
+      origin_access: OAC with SigV4 signing
+
+    acm_certificate:
+      region: us-east-1 (required for CloudFront)
+      domains:
+        - patpending.net
+        - www.patpending.net
+      validation: DNS via Route 53
+
+    route53:
+      hosted_zone_id: Z0557923LDI0SVGHCHAM
+      records:
+        - patpending.net A -> CloudFront
+        - patpending.net AAAA -> CloudFront
+        - www.patpending.net A -> CloudFront
+        - www.patpending.net AAAA -> CloudFront
+
+aws_account:
+  id: "128315352575"
+  admin_user: patrick-admin
+  cli_region: eu-west-2
+
+content:
+  files:
+    - path: privacy-policy.html
+      description: Privacy policy for Dry Days iPhone app
+      key_points:
+        - App collects no data
+        - No tracking or analytics
+        - All data stored locally on device
+    - path: index.html
+      description: Redirect to privacy-policy.html
+
+decisions:
+  - choice: CloudFront + S3 over S3 website hosting
+    reason: HTTPS support, security headers, CDN caching
+
+  - choice: eu-west-2 as default region
+    reason: User preference (London)
+
+  - choice: ACM in us-east-1
+    reason: AWS requirement for CloudFront certificates
+
+  - choice: PriceClass_100
+    reason: Cost-effective, covers US/Canada/Europe
+
+  - choice: Local Terraform state
+    reason: Solo project, simplicity over remote state
+
+urls:
+  website: https://patpending.net
+  privacy_policy: https://patpending.net/privacy-policy.html
+  github: https://github.com/patpending/privacy-policy
+
+tags:
+  Project: patpending-static-site
+  ManagedBy: terraform
